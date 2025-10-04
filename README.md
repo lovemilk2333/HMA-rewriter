@@ -26,3 +26,6 @@ example
 ```sh
 sudo python ./HMA_rewriter.py -c /data/data/org.frknkrc44.hma_oss/files/config.json -o \~
 ```
+
+to ignore some apps to apply template, use `-i <APPID>` or `--ignore <APPID>`  
+to merge whitelists for whitelist-enabled-apps, use `--merge`
