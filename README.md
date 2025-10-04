@@ -27,5 +27,23 @@ example
 sudo python ./HMA_rewriter.py -c /data/data/org.frknkrc44.hma_oss/files/config.json -o \~
 ```
 
-to ignore some apps to apply template, use `-i <APPID>` or `--ignore <APPID>`  
 to merge whitelists for whitelist-enabled-apps, use `--merge`
+
+
+## Ignore Rules
+to simply ignore some apps while applying a template, use `-i <APPID>` or `--ignore <APPID>`
+
+if you want to ignore apps dynamically, follow these rules:
+1. `-i <APPID>` like `-i org.frknkrc44.hma_oss` to ignore app with app id `org.frknkrc44.hma_oss`
+2. `-i #<APP_LIST>` like `-i #cnapps` to ignore all apps in the app list (also *template* in HMA app) `cnapps` (either blacklist or whitelist)
+3. `-i <IGNORE_RULES_FILE>` like `-i /path/to/ignore.rules` to load ignore rules file in which each line is one of the ignore rules
+
+### Ignore Rules File
+NOTE: use `//` to add a comment
+
+```text
+org.frknkrc44.hma_oss  // Hide-My-Applist app
+#cnapps  // app list for cn apps
+/path/to/another/ignore.rules  // another ignore rules file
+// you can also add new rules at bottom
+```

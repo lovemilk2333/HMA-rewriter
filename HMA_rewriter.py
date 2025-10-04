@@ -3,6 +3,9 @@ import argparse
 from pathlib import Path
 from json import load, dump, dumps
 
+FILE_ENCODING = 'UTF-8'
+IGNORE_COMMENT = '//'
+
 parser = argparse.ArgumentParser(description='HMA Config auto writer')
 parser.add_argument('-c', '--config', type=Path, metavar='CONFIG_FILE',
                     required=True, help='config file path')
@@ -14,8 +17,8 @@ parser.add_argument('-m', '--mkdir', action='store_false',
                     help='make parent dirs of output if output is a file')
 parser.add_argument('-n', '--name', type=str, default='cnapps', metavar='WHITELIST_NAME',
                     help='the name of whitelist you want to use as apply')
-parser.add_argument('-i', '--ignore', default=[], metavar='APPID', action='append',
-                    help='ignore apps skip to apply template (allow access these apps only)')
+parser.add_argument('-i', '--ignore', default=[], metavar='RULE', action='append',
+                    help=f'ignore apps skip to apply template (allow access these apps only)\nif RULE starts with `#`, it means ignore all apps of this app list (either blacklist or whitelist)\nif RULE is a filepath, it means load all ignore rules in this text file breaks by line (use `{FILE_ENCODING}` encoding)\nuse `//` to add comment')
 parser.add_argument('--merge', action='store_true',
                     help='if enabled and the app\'s original config exists in whitelist mode, the script will only merge whitelist names and keep other options')
 
@@ -23,7 +26,6 @@ args = parser.parse_args()
 
 assert args.name, 'whitelist name cannot be empty'
 CNAPP_WHITELIST_NAME = args.name
-FILE_ENCODING = 'u8'
 CNAPP_SETTINGS_TEMPLATE = {
     "useWhitelist": True,
     "excludeSystemApps": True,
@@ -55,8 +57,50 @@ with args.config.open('r', encoding=FILE_ENCODING) as config_fp:
 
 templates = config_json['templates']
 assert CNAPP_WHITELIST_NAME in templates, f'no such whitelist `{CNAPP_WHITELIST_NAME}`'
-CNAPP_LIST = filter(lambda appid: appid not in args.ignore,
-                    templates[CNAPP_WHITELIST_NAME]['appList'])
+
+
+def _looks_like_filepath(text: str):
+    text = text.strip().replace('\\', '/')
+    if text.startswith('/') or (len(text) >= 2 and text[1] == ':'):
+        return True
+
+    if text.startswith('./') or text.startswith('../'):
+        return True
+
+    return False
+
+def parse_ignores(ignores: set[str]):
+    parsed: set[str] = set()
+    app_lists: set[str] = set()
+
+    for ignore in ignores:
+        ignore = ignore.strip()
+        if ignore.startswith(IGNORE_COMMENT):
+            continue
+
+        ignore = ignore.split(IGNORE_COMMENT, 1)[0].strip()
+
+        if _looks_like_filepath(ignore):
+            with Path(ignore).open('r', encoding=FILE_ENCODING) as fp:
+                parsed |= parse_ignores(set(fp.readlines()))
+        elif ignore.startswith('#'):
+            app_list_name = ignore[1:]
+            assert app_list_name in templates, f'no such app list for ignore rules `{app_list_name}`'
+            app_lists.add(app_list_name)
+        else:
+            parsed.add(ignore)
+    
+    for app_list_name in app_lists:
+        parsed |= set(templates[app_list_name]['appList'])
+    
+    return parsed
+
+ignored_apps = parse_ignores(set(args.ignore))
+
+CNAPP_LIST = filter(
+    lambda appid: appid not in ignored_apps,
+    templates[CNAPP_WHITELIST_NAME]['appList']
+)
 
 use_merge = args.merge
 for appid in CNAPP_LIST:
