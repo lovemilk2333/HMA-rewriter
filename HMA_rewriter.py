@@ -11,16 +11,18 @@ parser.add_argument('-c', '--config', type=Path, metavar='CONFIG_FILE',
                     required=True, help='config file path')
 parser.add_argument('-o', '--output', type=str, required=True, metavar='OUTPUT_FILE',
                     help='output file path, `-` means stdout, `~` to overwrite config file')
-parser.add_argument('-w', '--force-overwrite', action='store_false',
+parser.add_argument('-w', '--force-overwrite', action='store_true',
                     help='overwrite output file even the file exists')
-parser.add_argument('-m', '--mkdir', action='store_false',
+parser.add_argument('-m', '--mkdir', action='store_true',
                     help='make parent dirs of output if output is a file')
 parser.add_argument('-n', '--name', type=str, default='cnapps', metavar='WHITELIST_NAME',
                     help='the name of whitelist you want to use as apply')
 parser.add_argument('-i', '--ignore', default=[], metavar='RULE', action='append',
-                    help=f'ignore apps skip to apply template (allow access these apps only)\nif RULE starts with `#`, it means ignore all apps of this app list (either blacklist or whitelist)\nif RULE is a filepath, it means load all ignore rules in this text file breaks by line (use `{FILE_ENCODING}` encoding)\nuse `//` to add comment')
+                    help=f'ignore apps skip to apply template (to allow other apps access these apps only)\nif RULE starts with `#`, it means ignore all apps of this app list (either blacklist or whitelist)\nif RULE is a filepath, it means load all ignore rules in this text file breaks by line (use `{FILE_ENCODING}` encoding)\nuse `//` to add comment')
 parser.add_argument('--merge', action='store_true',
                     help='if enabled and the app\'s original config exists in whitelist mode, the script will only merge whitelist names and keep other options')
+parser.add_argument('-e', '--extra-name', action='append', default=[],
+                    metavar='WHITELIST_NAME', help='add other whitelists for apps')
 
 args = parser.parse_args()
 
@@ -48,7 +50,8 @@ if output != '-':
         print('output file exists, aborted.\nuse `-w` or `--force-overwrite` to ignore aborting')
         sys.exit(-1)
 
-    if args.mkdir and not output.parent.is_dir():
+    if not output.parent.is_dir():
+        assert args.mkdir, f'no such directory: `{output.parent}`'
         output.mkdir(parents=True)
 
 
@@ -57,6 +60,16 @@ with args.config.open('r', encoding=FILE_ENCODING) as config_fp:
 
 templates = config_json['templates']
 assert CNAPP_WHITELIST_NAME in templates, f'no such whitelist `{CNAPP_WHITELIST_NAME}`'
+
+not_found_whitelists = tuple(
+    filter(lambda name: name not in templates, args.extra_name)
+)
+assert len(not_found_whitelists) <= 0, \
+    f'no such whitelist{(len(not_found_whitelists) > 1) * "s"} for apps: `{", ".join(not_found_whitelists)}`'
+
+CNAPP_SETTINGS_TEMPLATE['applyTemplates'] = list(
+    set(CNAPP_SETTINGS_TEMPLATE['applyTemplates'] + args.extra_name)
+)
 
 
 def _looks_like_filepath(text: str):
@@ -68,6 +81,7 @@ def _looks_like_filepath(text: str):
         return True
 
     return False
+
 
 def parse_ignores(ignores: set[str]):
     parsed: set[str] = set()
@@ -89,11 +103,12 @@ def parse_ignores(ignores: set[str]):
             app_lists.add(app_list_name)
         else:
             parsed.add(ignore)
-    
+
     for app_list_name in app_lists:
         parsed |= set(templates[app_list_name]['appList'])
-    
+
     return parsed
+
 
 ignored_apps = parse_ignores(set(args.ignore))
 
@@ -128,4 +143,5 @@ else:
     with output.open('w', encoding=FILE_ENCODING) as output_file:
         dump(config_json, output_file)
 
-    print('OK')
+    print('OK!')
+    print(output.resolve())
