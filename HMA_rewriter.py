@@ -59,10 +59,10 @@ with args.config.open('r', encoding=FILE_ENCODING) as config_fp:
     config_json = load(config_fp)
 
 templates = config_json['templates']
-assert CNAPP_WHITELIST_NAME in templates, f'no such whitelist `{CNAPP_WHITELIST_NAME}`'
+assert templates.get(CNAPP_WHITELIST_NAME, {}).get('isWhitelist', False), f'no such whitelist `{CNAPP_WHITELIST_NAME}`'
 
 not_found_whitelists = tuple(
-    filter(lambda name: name not in templates, args.extra_name)
+    filter(lambda name: not templates.get(name, {}).get('isWhitelist', False), args.extra_name)
 )
 assert len(not_found_whitelists) <= 0, \
     f'no such whitelist{(len(not_found_whitelists) > 1) * "s"} for apps: `{", ".join(not_found_whitelists)}`'
