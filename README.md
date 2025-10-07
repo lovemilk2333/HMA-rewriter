@@ -2,7 +2,7 @@
 
 a simple Python script to rewrite HMA config JSON for me
 
-auto patch app config for apps of template called `cnapps` as whitelist with `applyTemplates: ["cnapps"]` only
+auto patch app config for apps template specified with whitelist(s)
 
 ## Usage
 ```sh
@@ -29,11 +29,11 @@ sudo python ./HMA_rewriter.py -c /data/data/org.frknkrc44.hma_oss/files/config.j
 
 to merge whitelists for whitelist-enabled-apps, use `--merge`
 
-to add extra whitelists for apps, use `-e <WHITELIST_NAME>, -e <ANOTHER_WHITELIST_NAME>, -e ...`
+to add extra whitelists for apps, use `-e <WHITELIST_NAME> -e <ANOTHER_WHITELIST_NAME> -e ...`
 
 
 ## Ignore Rules
-to simply ignore some apps while applying a template, use `-i <RULE>, -i <ANOTHER_RULE>, -i ...` or `--ignore <RULE>, ...`
+to simply ignore some apps while applying a template, use `-i <RULE> -i <ANOTHER_RULE> -i ...` or `--ignore <RULE> ...`
 
 if you want to ignore apps dynamically, follow these rules:
 1. `-i <APPID>` like `-i org.frknkrc44.hma_oss` to ignore app with app id `org.frknkrc44.hma_oss`
