@@ -6,6 +6,8 @@ from json import load, dump, dumps
 FILE_ENCODING = 'UTF-8'
 IGNORE_COMMENT = '//'
 
+_EMPTY_DICT = {}
+
 parser = argparse.ArgumentParser(description='HMA Config auto writer')
 parser.add_argument('-c', '--config', type=Path, metavar='CONFIG_FILE',
                     required=True, help='config file path')
@@ -59,10 +61,12 @@ with args.config.open('r', encoding=FILE_ENCODING) as config_fp:
     config_json = load(config_fp)
 
 templates = config_json['templates']
-assert templates.get(CNAPP_WHITELIST_NAME, {}).get('isWhitelist', False), f'no such whitelist `{CNAPP_WHITELIST_NAME}`'
+assert templates.get(CNAPP_WHITELIST_NAME, _EMPTY_DICT).get(
+    'isWhitelist', False), f'no such whitelist `{CNAPP_WHITELIST_NAME}`'
 
 not_found_whitelists = tuple(
-    filter(lambda name: not templates.get(name, {}).get('isWhitelist', False), args.extra_name)
+    filter(lambda name: not templates.get(name, _EMPTY_DICT).get(
+        'isWhitelist', False), args.extra_name)
 )
 assert len(not_found_whitelists) <= 0, \
     f'no such whitelist{(len(not_found_whitelists) > 1) * "s"} for apps: `{", ".join(not_found_whitelists)}`'
@@ -83,7 +87,7 @@ def _looks_like_filepath(text: str):
     return False
 
 
-def parse_ignores(ignores: set[str]):
+def parse_ignores(ignores: set[str]) -> tuple[set[str], set[str]]:
     parsed: set[str] = set()
     app_lists: set[str] = set()
 
@@ -96,7 +100,9 @@ def parse_ignores(ignores: set[str]):
 
         if _looks_like_filepath(ignore):
             with Path(ignore).open('r', encoding=FILE_ENCODING) as fp:
-                parsed |= parse_ignores(set(fp.readlines()))
+                _parsed, _app_list = parse_ignores(set(fp.readlines()))
+                parsed |= _parsed
+                app_lists |= _app_list
         elif ignore.startswith('#'):
             app_list_name = ignore[1:]
             assert app_list_name in templates, f'no such app list for ignore rules `{app_list_name}`'
@@ -104,38 +110,32 @@ def parse_ignores(ignores: set[str]):
         else:
             parsed.add(ignore)
 
-    for app_list_name in app_lists:
-        parsed |= set(templates[app_list_name]['appList'])
-
-    return parsed
+    return parsed, app_lists
 
 
-ignored_apps = parse_ignores(set(args.ignore))
+ignored_apps, ignored_lists = parse_ignores(set(args.ignore))
+for _app_list_name in ignored_lists:
+    ignored_apps |= set(templates[_app_list_name]['appList'])
 
 CNAPP_LIST = filter(
     lambda appid: appid not in ignored_apps,
     templates[CNAPP_WHITELIST_NAME]['appList']
 )
 
-use_merge = args.merge
-for appid in CNAPP_LIST:
-    if not use_merge:
+if args.merge:
+    for appid in CNAPP_LIST:
+        appconfig = config_json['scope'].get(appid)
+        if appconfig is None or not appconfig['useWhitelist']:
+            config_json['scope'][appid] = CNAPP_SETTINGS_TEMPLATE
+            continue
+
+        app_templates = appconfig['applyTemplates']
+        if CNAPP_WHITELIST_NAME not in app_templates:
+            app_templates.append(CNAPP_SETTINGS_TEMPLATE)
+else:
+    for appid in CNAPP_LIST:
         config_json['scope'][appid] = CNAPP_SETTINGS_TEMPLATE
         continue
-
-    appconfig = config_json['scope'].get(appid)
-    if appconfig is None:
-        config_json['scope'][appid] = CNAPP_SETTINGS_TEMPLATE
-        continue
-
-    is_whitelist = appconfig['useWhitelist']
-    if not is_whitelist:
-        config_json['scope'][appid] = CNAPP_SETTINGS_TEMPLATE
-        continue
-
-    app_templates = appconfig['applyTemplates']
-    if CNAPP_WHITELIST_NAME not in app_templates:
-        app_templates.append(CNAPP_SETTINGS_TEMPLATE)
 
 if output == '-':
     print(dumps(config_json))
