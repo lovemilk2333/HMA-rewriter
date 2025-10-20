@@ -8,11 +8,26 @@ IGNORE_COMMENT = '//'
 
 _EMPTY_DICT = {}
 
+
+def confirm_box(prompt: str = "", empty_as_true: bool = False):
+    if 'Y/n' not in prompt:
+        prompt = f'{prompt} [Y/n] '
+
+    try:
+        ipt = input(prompt)
+        if len(ipt) == 0 and empty_as_true:
+            return True
+
+        return ipt.lower() == 'y'
+    except KeyboardInterrupt:
+        return False
+
+
 parser = argparse.ArgumentParser(description='HMA Config auto writer')
 parser.add_argument('-c', '--config', type=Path, metavar='CONFIG_FILE',
                     required=True, help='config file path')
 parser.add_argument('-o', '--output', type=str, required=True, metavar='OUTPUT_FILE',
-                    help='output file path, `-` means stdout, `~` to overwrite config file')
+                    help='output file path, `-` means stderr, `~` to overwrite config file')
 parser.add_argument('-w', '--force-overwrite', action='store_true',
                     help='overwrite output file even the file exists')
 parser.add_argument('-m', '--mkdir', action='store_true',
@@ -46,11 +61,17 @@ CNAPP_SETTINGS_TEMPLATE = {
 }
 
 output = args.output
-if output != '-':
-    output = args.config if output == '~' else Path(output)
+if output == '-':
+    pass
+elif output == '~':
+    output = args.config
+else:
+    output = Path(output)
     if output.is_file() and not args.force_overwrite:
-        print('output file exists, aborted.\nuse `-w` or `--force-overwrite` to ignore aborting')
-        sys.exit(-1)
+        # print('output file exists, aborted.\nuse `-w` or `--force-overwrite` to ignore aborting')
+        if not confirm_box('output file exists, do you want to continue? (use `-w` or `--force-overwrite` to skip this interrupt)', empty_as_true=True):
+            print('aborted')
+            sys.exit(-1)
 
     if not output.parent.is_dir():
         assert args.mkdir, f'no such directory: `{output.parent}`'
@@ -122,11 +143,17 @@ CNAPP_LIST = filter(
     templates[CNAPP_WHITELIST_NAME]['appList']
 )
 
+unapplied_apps = None
 if args.merge:
+    unapplied_apps = set()
+
     for appid in CNAPP_LIST:
         appconfig = config_json['scope'].get(appid)
         if appconfig is None or not appconfig['useWhitelist']:
-            config_json['scope'][appid] = CNAPP_SETTINGS_TEMPLATE
+            # config_json['scope'][appid] = CNAPP_SETTINGS_TEMPLATE
+            # continue
+            print(f'[WARN] keep original config for app `{appid}`: `--merge` is only available for app which in whitelist mode')
+            unapplied_apps.add(appid)
             continue
 
         app_templates = appconfig['applyTemplates']
@@ -135,13 +162,19 @@ if args.merge:
 else:
     for appid in CNAPP_LIST:
         config_json['scope'][appid] = CNAPP_SETTINGS_TEMPLATE
-        continue
 
 if output == '-':
-    print(dumps(config_json))
+    print(dumps(config_json), file=sys.stderr)
 else:
     with output.open('w', encoding=FILE_ENCODING) as output_file:
         dump(config_json, output_file)
 
-    print('OK!')
+    if unapplied_apps:
+        if len(unapplied_apps) == 1:
+            print('the config of this app was not changed:', end='\n\n')
+        else:
+            print('the config of those apps was not changed:', end='\n\n')
+        print('\n'.join(unapplied_apps), end='\n\n')
+    else:
+        print('OK!')
     print(output.resolve())
