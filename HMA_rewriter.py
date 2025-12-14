@@ -23,23 +23,65 @@ def confirm_box(prompt: str = "", empty_as_true: bool = False):
         return False
 
 
+class AppendOrNone(argparse.Action):
+    """
+    when argument is not provided,
+    we will give you `None`
+
+    and when it is provided but without any values,
+    we will give you a empty list `[]`
+
+    else, we will give you a list contains all values
+    """
+
+    def __init__(self, option_strings, dest, **kwargs) -> None:
+        kwargs['nargs'] = '?'
+        kwargs['default'] = None
+        super().__init__(option_strings, dest, **kwargs)
+
+    def __call__(self, _, namespace, values, option_string=...):
+        items = getattr(namespace, self.dest, [])
+        if items is None:
+            items = []
+            setattr(namespace, self.dest, items)
+        if values is None:
+            return
+
+        items.append(values)
+
+
 parser = argparse.ArgumentParser(description='HMA Config auto writer')
 parser.add_argument('-c', '--config', type=Path, metavar='CONFIG_FILE',
                     required=True, help='config file path')
 parser.add_argument('-o', '--output', type=str, required=True, metavar='OUTPUT_FILE',
                     help='output file path, `-` means stderr, `~` to overwrite config file')
+
 parser.add_argument('-w', '--force-overwrite', action='store_true',
                     help='overwrite output file even the file exists')
 parser.add_argument('-m', '--mkdir', action='store_true',
+
                     help='make parent dirs of output if output is a file')
 parser.add_argument('-n', '--name', type=str, default='cnapps', metavar='WHITELIST_NAME',
                     help='the name of whitelist you want to use as apply')
+
 parser.add_argument('-i', '--ignore', default=[], metavar='RULE', action='append',
                     help=f'ignore apps skip to apply template (to allow other apps access these apps only)\nif RULE starts with `#`, it means ignore all apps of this app list (either blacklist or whitelist)\nif RULE is a filepath, it means load all ignore rules in this text file breaks by line (use `{FILE_ENCODING}` encoding)\nuse `//` to add comment')
+
 parser.add_argument('--merge', action='store_true',
                     help='if enabled and the app\'s original config exists in whitelist mode, the script will only merge whitelist names and keep other options')
+
 parser.add_argument('-e', '--extra-name', action='append', default=[],
                     metavar='WHITELIST_NAME', help='add other whitelists for apps')
+
+parser.add_argument('-p', '--force-presets',
+                    dest='presets', action=AppendOrNone, help='overwrite presets with specified presets\nif no preset provided, use template presets as default')
+parser.add_argument('-s', '--force-settings-presets',
+                    dest='settings_presets', action=AppendOrNone, help='overwrite settings presets with specified presets\nif no settings preset provided, use template settings presets as default')
+
+parser.add_argument('--merge-presets', action='store_true',
+                    help='merge presets when `--force-presets` is enabled instead of overwrite')
+parser.add_argument('--merge-settings-presets', action='store_true',
+                    help='merge settings presets when `--force-settings-presets` is enabled instead of overwrite')
 
 args = parser.parse_args()
 
@@ -138,6 +180,34 @@ def parse_ignores(ignores: set[str]) -> tuple[set[str], set[str]]:
     return parsed, app_lists
 
 
+def overwrite_presets(appconfig: dict):
+    if args.presets is None:
+        return
+
+    presets = args.presets or CNAPP_SETTINGS_TEMPLATE['applyPresets']
+
+    if args.merge_presets:
+        appconfig['applyPresets'] = list(
+            set(appconfig['applyPresets'] + presets)
+        )
+    else:
+        appconfig['applyPresets'] = presets
+
+
+def overwrite_settings_presets(appconfig: dict):
+    if args.settings_presets is None:
+        return
+
+    settings_presets = args.settings_presets or CNAPP_SETTINGS_TEMPLATE['applySettingsPresets']
+
+    if args.merge_settings_presets:
+        appconfig['applySettingsPresets'] = list(
+            set(appconfig['applySettingsPresets'] + settings_presets)
+        )
+    else:
+        appconfig['applySettingsPresets'] = settings_presets
+
+
 ignored_apps, ignored_lists = parse_ignores(set(args.ignore))
 for _app_list_name in ignored_lists:
     ignored_apps |= set(templates[_app_list_name]['appList'])
@@ -153,6 +223,8 @@ if args.merge:
 
     for appid in CNAPP_LIST:
         appconfig = config_json['scope'].get(appid)
+        overwrite_presets(appconfig)
+        overwrite_settings_presets(appconfig)
         if appconfig is None or not appconfig['useWhitelist']:
             # config_json['scope'][appid] = CNAPP_SETTINGS_TEMPLATE
             # continue
@@ -165,6 +237,10 @@ if args.merge:
         if CNAPP_WHITELIST_NAME not in app_templates:
             app_templates.append(CNAPP_SETTINGS_TEMPLATE)
 else:
+    # update TEMPLATE to apply for all apps
+    overwrite_presets(CNAPP_SETTINGS_TEMPLATE)
+    overwrite_settings_presets(CNAPP_SETTINGS_TEMPLATE)
+
     for appid in CNAPP_LIST:
         config_json['scope'][appid] = CNAPP_SETTINGS_TEMPLATE
 
@@ -178,7 +254,7 @@ else:
         if len(unapplied_apps) == 1:
             print('the config of this app was not changed:', end='\n\n')
         else:
-            print('the config of those apps was not changed:', end='\n\n')
+            print('the config of those apps were not changed:', end='\n\n')
         print('\n'.join(unapplied_apps), end='\n\n')
     else:
         print('OK!')

@@ -31,6 +31,10 @@ to merge whitelists for whitelist-enabled-apps, use `--merge`
 
 to add extra whitelists for apps, use `-e <WHITELIST_NAME> -e <ANOTHER_WHITELIST_NAME> -e ...`
 
+to overwrite presets and settings presets, use `-p <PRESET_NAME> -p <ANOTHER_PRESET_NAME> -p ...` and `-s <SETTING_NAME> -s <ANOTHER_SETTING_NAME> -s ...`
+or `-p` and `-s` to use default presets predefined in script's template
+
+if you want to merge presets and settings presets, use `--merge-presets` and `--merge-settings-presets`
 
 ## Ignore Rules
 to simply ignore some apps while applying a template, use `-i <RULE> -i <ANOTHER_RULE> -i ...` or `--ignore <RULE> ...`
