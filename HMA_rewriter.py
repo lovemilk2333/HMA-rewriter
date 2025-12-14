@@ -138,9 +138,8 @@ not_found_whitelists = tuple(
 assert len(not_found_whitelists) <= 0, \
     f'no such whitelist{(len(not_found_whitelists) > 1) * "s"} for apps: `{", ".join(not_found_whitelists)}`'
 
-CNAPP_SETTINGS_TEMPLATE['applyTemplates'] = list(
-    set(CNAPP_SETTINGS_TEMPLATE['applyTemplates'] + args.extra_name)
-)
+all_whitelists_set = set(CNAPP_SETTINGS_TEMPLATE['applyTemplates'] + args.extra_name)
+CNAPP_SETTINGS_TEMPLATE['applyTemplates'] = list(all_whitelists_set)
 
 
 def _looks_like_filepath(text: str):
@@ -180,8 +179,8 @@ def parse_ignores(ignores: set[str]) -> tuple[set[str], set[str]]:
     return parsed, app_lists
 
 
-def overwrite_presets(appconfig: dict):
-    if args.presets is None:
+def overwrite_presets(appconfig: dict | None):
+    if appconfig is None or args.presets is None:
         return
 
     presets = args.presets or CNAPP_SETTINGS_TEMPLATE['applyPresets']
@@ -194,11 +193,12 @@ def overwrite_presets(appconfig: dict):
         appconfig['applyPresets'] = presets
 
 
-def overwrite_settings_presets(appconfig: dict):
-    if args.settings_presets is None:
+def overwrite_settings_presets(appconfig: dict | None):
+    if appconfig is None or args.settings_presets is None:
         return
 
     settings_presets = args.settings_presets or CNAPP_SETTINGS_TEMPLATE['applySettingsPresets']
+    print(settings_presets)
 
     if args.merge_settings_presets:
         appconfig['applySettingsPresets'] = list(
@@ -234,8 +234,7 @@ if args.merge:
             continue
 
         app_templates = appconfig['applyTemplates']
-        if CNAPP_WHITELIST_NAME not in app_templates:
-            app_templates.append(CNAPP_SETTINGS_TEMPLATE)
+        appconfig['applyTemplates'] = list(set(app_templates) | all_whitelists_set)
 else:
     # update TEMPLATE to apply for all apps
     overwrite_presets(CNAPP_SETTINGS_TEMPLATE)
