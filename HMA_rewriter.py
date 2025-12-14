@@ -56,7 +56,11 @@ CNAPP_SETTINGS_TEMPLATE = {
         CNAPP_WHITELIST_NAME
     ],
     "applyPresets": [],
-    "applySettingsPresets": [],
+    "applySettingsPresets": [
+        "accessibility",
+        "dev_options",
+        "input_method"
+    ],
     "extraAppList": []
 }
 
@@ -152,7 +156,8 @@ if args.merge:
         if appconfig is None or not appconfig['useWhitelist']:
             # config_json['scope'][appid] = CNAPP_SETTINGS_TEMPLATE
             # continue
-            print(f'[WARN] keep original config for app `{appid}`: `--merge` is only available for app which in whitelist mode')
+            print(
+                f'[WARN] keep original config for app `{appid}`: `--merge` is only available for app which in whitelist mode')
             unapplied_apps.add(appid)
             continue
 
