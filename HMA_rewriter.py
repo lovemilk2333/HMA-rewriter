@@ -99,9 +99,9 @@ CNAPP_SETTINGS_TEMPLATE = {
     ],
     "applyPresets": [],
     "applySettingsPresets": [
-        "accessibility",
-        "dev_options",
-        "input_method"
+        # "accessibility",  # 无障碍
+        "dev_options",  # 开发者选项
+        # "input_method"  # 输入法
     ],
     "extraAppList": []
 }
@@ -198,7 +198,6 @@ def overwrite_settings_presets(appconfig: dict | None):
         return
 
     settings_presets = args.settings_presets or CNAPP_SETTINGS_TEMPLATE['applySettingsPresets']
-    print(settings_presets)
 
     if args.merge_settings_presets:
         appconfig['applySettingsPresets'] = list(
